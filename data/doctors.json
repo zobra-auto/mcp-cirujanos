@@ -1,0 +1,8 @@
+{
+  "_doc": "BARBERS_JSON del MCP, adaptado a médicos. Cada clave = un recurso agendable con su Google Calendar. calendarId = calendario de PRUEBA 'cirujanos-dr-fredy-test' creado con la SA mcp-valeria@zobra-pruebas (verificado create/list/delete). Para otro doctor: nueva clave + su calendarId.",
+  "dr_fredy": {
+    "displayName": "Dr. Jhon Fredy Ramírez",
+    "aliases": ["fredy", "doctor fredy", "dr fredy", "ramirez"],
+    "calendarId": "bbfad6ea2cbcf0ba24487a1cff2fd56c0eb74b3a3937c6306a6c31dc51389c6a@group.calendar.google.com"
+  }
+}

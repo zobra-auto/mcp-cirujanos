@@ -1,0 +1,5 @@
+{
+  "_doc": "BUSINESS_HOURS_JSON del MCP. Ventanas de atención de la valoración. Datos de EJEMPLO (Doctores no tenía horario fijo). Duración del slot la controla DEFAULT_SLOT_MINUTES (=45). MODELO: una instancia MCP por doctor → 'default' = horario de ESE doctor (se usa aunque el agente pase un alias que no matchee la clave). 'dr_fredy' explícito por claridad. Para otro doctor: ajustar ambos.",
+  "default": { "days": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], "start": "09:00", "end": "17:00" },
+  "dr_fredy": { "days": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], "start": "09:00", "end": "17:00" }
+}

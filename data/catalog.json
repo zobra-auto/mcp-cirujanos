@@ -1,0 +1,24 @@
+{
+  "_doc": "CATALOG_JSON del MCP (requiere el parche de catalog.js para leerlo en vez del BASE_SHOP hardcodeado). 'servicios' = lo agendable (la VALORACIÓN en sus 3 modalidades). 'procedimientos' = informativo. Precios reales de Fredy; para otro doctor: cambiar todo.",
+  "id": "clinic-dr-fredy",
+  "nombre": "Consultorio Dr. Fredy Ramírez",
+  "ciudad": "Medellín",
+  "descripcion_corta": "Cirugía plástica estética. Valoración previa requerida antes de cualquier presupuesto de cirugía.",
+  "ubicacion": {
+    "direccion": "Centro Comercial El Tesoro, Torre Médica",
+    "ciudad": "Medellín, Colombia"
+  },
+  "politica_citas": "La valoración se agenda por WhatsApp. El precio de la cirugía solo se define en la valoración.",
+  "medios_pago": ["Bancolombia (virtual CO)", "PayPal (internacional)", "Efectivo/tarjeta (presencial)"],
+  "descuento": "Si te operas dentro de los 45 días siguientes a la valoración, ese valor se descuenta del total de la cirugía.",
+  "servicios": [
+    { "id": "valoracion-presencial",   "nombre": "Valoración presencial (Medellín)", "duracion_min": 45, "precio": 300000, "moneda": "COP", "descripcion": "Consulta presencial en El Tesoro, Torre Médica." },
+    { "id": "valoracion-virtual",      "nombre": "Valoración virtual (Colombia)",    "duracion_min": 45, "precio": 350000, "moneda": "COP", "descripcion": "Consulta virtual. Pago por transferencia Bancolombia." },
+    { "id": "valoracion-internacional","nombre": "Valoración internacional",          "duracion_min": 45, "precio": 110,    "moneda": "USD", "descripcion": "Para pacientes fuera de Colombia. Pago por PayPal." }
+  ],
+  "procedimientos": [
+    "blefaroplastia", "lifting facial", "mamoplastia de aumento", "mastopexia", "rinoplastia",
+    "abdominoplastia", "lipoescultura HD", "gluteoplastia", "lipotransferencia glútea (BBL)",
+    "implantes pectorales", "contorno corporal", "cirugía estética masculina"
+  ]
+}

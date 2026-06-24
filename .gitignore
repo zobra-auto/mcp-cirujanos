@@ -1,0 +1,18 @@
+# Dependencias
+node_modules/
+
+# Entorno / secretos (NUNCA commitear)
+.env
+*.env
+.env.local
+.env.production
+.env.development
+*credentials*.json
+GOOGLE_APPLICATION_CREDENTIALS_JSON
+*sa.json
+cirujanos_sa.json
+
+# Logs / temp
+*.log
+npm-debug.log*
+.DS_Store

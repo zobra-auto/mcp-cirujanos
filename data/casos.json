@@ -1,0 +1,44 @@
+{
+  "_doc": "Biblioteca de casos antes/después por procedimiento. EJEMPLOS NO REALES (placeholders). El bot (mensaje M1 del guion) llama buscar_casos(procedimiento) y envía 2-3 de estos vía Evolution. En producción: reemplazar image_antes/image_despues con URLs reales (S3/Evolution media) y descripciones reales, y poner real=true. La clave 'procedimiento' debe coincidir con las keys del tenant (lifting, rinoplastia, etc.).",
+  "casos": [
+    { "id": "ej-lifting-1", "procedimiento": "lifting", "real": false, "activo": true,
+      "titulo": "Rejuvenecimiento facial natural", "descripcion": "Flacidez y papada; resultado armónico sin verse 'operada'.",
+      "image_antes": "https://placehold.co/600x800/eeeeee/555?text=ANTES+lifting+1", "image_despues": "https://placehold.co/600x800/dfe7df/333?text=DESPUES+lifting+1" },
+    { "id": "ej-lifting-2", "procedimiento": "lifting", "real": false, "activo": true,
+      "titulo": "Definición de cuello y mentón", "descripcion": "Pérdida de contorno mandibular; recuperación de ángulo cervico-mentoniano.",
+      "image_antes": "https://placehold.co/600x800/eeeeee/555?text=ANTES+lifting+2", "image_despues": "https://placehold.co/600x800/dfe7df/333?text=DESPUES+lifting+2" },
+
+    { "id": "ej-rino-1", "procedimiento": "rinoplastia", "real": false, "activo": true,
+      "titulo": "Rinoplastia de perfil armónico", "descripcion": "Giba dorsal; perfil suavizado y natural.",
+      "image_antes": "https://placehold.co/600x800/eeeeee/555?text=ANTES+rino+1", "image_despues": "https://placehold.co/600x800/dfe7df/333?text=DESPUES+rino+1" },
+    { "id": "ej-rino-2", "procedimiento": "rinoplastia", "real": false, "activo": true,
+      "titulo": "Punta nasal refinada", "descripcion": "Punta caída; proyección y definición conservando rasgos.",
+      "image_antes": "https://placehold.co/600x800/eeeeee/555?text=ANTES+rino+2", "image_despues": "https://placehold.co/600x800/dfe7df/333?text=DESPUES+rino+2" },
+
+    { "id": "ej-mamo-1", "procedimiento": "mamoplastia", "real": false, "activo": true,
+      "titulo": "Aumento mamario proporcionado", "descripcion": "Volumen acorde a la anatomía; resultado natural.",
+      "image_antes": "https://placehold.co/600x800/eeeeee/555?text=ANTES+mamo+1", "image_despues": "https://placehold.co/600x800/dfe7df/333?text=DESPUES+mamo+1" },
+    { "id": "ej-masto-1", "procedimiento": "mastopexia", "real": false, "activo": true,
+      "titulo": "Levantamiento mamario", "descripcion": "Ptosis; reposición y firmeza.",
+      "image_antes": "https://placehold.co/600x800/eeeeee/555?text=ANTES+masto+1", "image_despues": "https://placehold.co/600x800/dfe7df/333?text=DESPUES+masto+1" },
+
+    { "id": "ej-lipohd-1", "procedimiento": "lipoescultura_hd", "real": false, "activo": true,
+      "titulo": "Marcación abdominal HD", "descripcion": "Definición de cintura y abdomen.",
+      "image_antes": "https://placehold.co/600x800/eeeeee/555?text=ANTES+lipoHD+1", "image_despues": "https://placehold.co/600x800/dfe7df/333?text=DESPUES+lipoHD+1" },
+    { "id": "ej-lipohd-2", "procedimiento": "lipoescultura_hd", "real": false, "activo": true,
+      "titulo": "Contorno de espalda y cintura", "descripcion": "Reducción de rollos dorsales; silueta definida.",
+      "image_antes": "https://placehold.co/600x800/eeeeee/555?text=ANTES+lipoHD+2", "image_despues": "https://placehold.co/600x800/dfe7df/333?text=DESPUES+lipoHD+2" },
+
+    { "id": "ej-abdomino-1", "procedimiento": "abdominoplastia", "real": false, "activo": true,
+      "titulo": "Abdominoplastia post-embarazo", "descripcion": "Diástasis y piel sobrante; abdomen plano.",
+      "image_antes": "https://placehold.co/600x800/eeeeee/555?text=ANTES+abdomen+1", "image_despues": "https://placehold.co/600x800/dfe7df/333?text=DESPUES+abdomen+1" },
+
+    { "id": "ej-bbl-1", "procedimiento": "lipotransferencia_glutea", "real": false, "activo": true,
+      "titulo": "Aumento glúteo con grasa propia (BBL)", "descripcion": "Proyección y forma natural.",
+      "image_antes": "https://placehold.co/600x800/eeeeee/555?text=ANTES+BBL+1", "image_despues": "https://placehold.co/600x800/dfe7df/333?text=DESPUES+BBL+1" },
+
+    { "id": "ej-blefaro-1", "procedimiento": "blefaroplastia", "real": false, "activo": true,
+      "titulo": "Blefaroplastia superior", "descripcion": "Exceso de piel en párpado; mirada descansada.",
+      "image_antes": "https://placehold.co/600x800/eeeeee/555?text=ANTES+blefaro+1", "image_despues": "https://placehold.co/600x800/dfe7df/333?text=DESPUES+blefaro+1" }
+  ]
+}

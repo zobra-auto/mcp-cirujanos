@@ -1,0 +1,24 @@
+{
+  "name": "mcp-cirujanos",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "MCP de agendamiento para consultorios de cirugía plástica (fork de valeria-mcp-server). Tools: calendar, booking, catalog, casos. Multi-tenant por env/archivos.",
+  "main": "src/server.js",
+  "license": "ISC",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "NODE_ENV=production node -r dotenv/config src/server.js"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "morgan": "^1.10.0",
+    "node-fetch": "^3.3.2",
+    "pino": "^9.3.0",
+    "uuid": "^9.0.1",
+    "googleapis": "^132.0.0",
+    "luxon": "^3.5.0"
+  }
+}
