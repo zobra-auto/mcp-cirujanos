@@ -84,6 +84,106 @@ function normalizePhone(str) {
   return String(str || '').replace(/[^\d+]/g, '');
 }
 
+function extractPhone(text) {
+  if (!text) return null;
+  const m = String(text).match(/\+?\d[\d\s().-]{6,}\d/);
+  if (!m) return null;
+  const norm = normalizePhone(m[0]);
+  return norm.length >= 7 ? norm : null;
+}
+
+// Resuelve la lista de calendarios a consultar (mismo criterio que booking.search).
+async function resolveCalendars({ barber, calendarId: explicitCalId }) {
+  const barbersCfg = loadBarbersConfig();
+  const calendars = [];
+  if (explicitCalId) {
+    calendars.push({ calendarId: explicitCalId, barberLabel: barber || explicitCalId });
+  } else if (barber) {
+    const resolved = await barbersTool.actions.resolve({ params: { name: barber } });
+    if (!resolved.ok) {
+      const err = new Error(resolved.error?.message || 'BARBER_NOT_FOUND');
+      err.code = resolved.error?.code || 'BARBER_NOT_FOUND';
+      throw err;
+    }
+    const barberId = resolved.data.barber_id;
+    const cfg = barbersCfg[barberId];
+    if (!cfg || !cfg.calendarId) {
+      const err = new Error(`MISSING_CALENDAR para barbero ${barberId}`);
+      err.code = 'MISSING_CALENDAR';
+      throw err;
+    }
+    calendars.push({ calendarId: cfg.calendarId, barberLabel: cfg.displayName || barber, barberId });
+  } else {
+    for (const [barberId, cfg] of Object.entries(barbersCfg)) {
+      if (!cfg || !cfg.calendarId) continue;
+      calendars.push({ calendarId: cfg.calendarId, barberLabel: cfg.displayName || barberId, barberId });
+    }
+  }
+  if (!calendars.length) {
+    const err = new Error('MISSING_CALENDAR');
+    err.code = 'MISSING_CALENDAR';
+    throw err;
+  }
+  return calendars;
+}
+
+// ---------- Core booking.list (citas en una ventana, sin filtro por teléfono) ----------
+// La usan el cron de confirmación 24h y la métrica de "Agendadas".
+async function listBookings(params = {}) {
+  const log = createRequestLogger({ tool: 'booking', action: 'list' });
+  const start = Date.now();
+  const { from, to, barber, calendarId } = params;
+
+  const now = DateTime.now().setZone(TZ);
+  const fromDT = from ? DateTime.fromISO(from, { zone: TZ }) : now;
+  const toDT = to ? DateTime.fromISO(to, { zone: TZ }) : now.plus({ days: 1 });
+  if (!fromDT.isValid || !toDT.isValid || toDT <= fromDT) {
+    const err = new Error('INVALID_RANGE: rango de fechas inválido');
+    err.code = 'INVALID_RANGE';
+    log.error({ err: { message: err.message, code: err.code }, from, to }, 'booking.list → rango inválido');
+    throw err;
+  }
+
+  const calendars = await resolveCalendars({ barber, calendarId });
+  const auth = getAuthClient();
+  const calendarApi = google.calendar({ version: 'v3', auth });
+  const eventsOut = [];
+
+  for (const cal of calendars) {
+    const res = await calendarApi.events.list({
+      calendarId: cal.calendarId,
+      timeMin: fromDT.toISO(),
+      timeMax: toDT.toISO(),
+      singleEvents: true,
+      orderBy: 'startTime',
+      timeZone: TZ,
+    });
+    const items = res.data.items || [];
+    for (const ev of items) {
+      const startStr = ev.start?.dateTime || ev.start?.date;
+      const endStr = ev.end?.dateTime || ev.end?.date;
+      if (!startStr) continue;
+      const description = ev.description || '';
+      const location = ev.location || '';
+      const summary = ev.summary || '';
+      const phone = extractPhone(location) || extractPhone(description);
+      eventsOut.push({
+        id: ev.id,
+        start: DateTime.fromISO(startStr, { zone: TZ }).toISO(),
+        end: endStr ? DateTime.fromISO(endStr, { zone: TZ }).toISO() : null,
+        barber: cal.barberLabel,
+        who: summary || '',
+        phone: phone || null,
+        notes: description || '',
+      });
+    }
+  }
+
+  eventsOut.sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
+  logWithDuration(log, 'booking.list → completado', { events: eventsOut.length }, start);
+  return { events: eventsOut };
+}
+
 // ---------- Core booking.search ----------
 
 async function searchBookings(params = {}) {
@@ -285,6 +385,10 @@ export const name = 'booking';
 export const actions = {
   async search({ params }) {
     const data = await searchBookings(params);
+    return { ok: true, data };
+  },
+  async list({ params }) {
+    const data = await listBookings(params);
     return { ok: true, data };
   },
 };
