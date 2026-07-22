@@ -546,6 +546,7 @@ export async function createEvent(params) {
       ? await withIdempotency(`calendar:create:${client_request_id}`, exec)
       : await exec();
 
+    await Promise.resolve(cache.clear());
     logWithDuration(log, 'calendar.create → completado', { id: result.id }, startLog);
     return result;
   } catch (e) {
@@ -585,6 +586,7 @@ export async function cancelEvent(params) {
       await calendar.events.delete({ calendarId: calId, eventId });
     });
 
+    await Promise.resolve(cache.clear());
     logWithDuration(log, 'calendar.cancel → completado', { eventId }, startLog);
     return { id: eventId, cancelled: true };
   } catch (e) {
@@ -624,7 +626,7 @@ export async function checkAvailability(params) {
   log.info({ params }, 'calendar.check → inicio');
 
   // ACEPTAMOS: from+to (ISO) O date (YYYY-MM-DD)
-  let { from, to, date, duration, buffer = 0, barber, calendarId: explicitCalId } = params || {};
+  let { from, to, date, duration, buffer = 0, barber, calendarId: explicitCalId, no_cache = false } = params || {};
 
   // LÓGICA NUEVA: Si envían "date" simple, calculamos el rango del día completo
   if (date && !from && !to) {
@@ -658,7 +660,7 @@ export async function checkAvailability(params) {
   
   // Cache logic
   const cacheKey = ['calendar.check', calId, fromDT.toISO(), toDT.toISO(), durMin, bufferMin, barber || 'none'].join('|');
-  const cached = await Promise.resolve(cache.get(cacheKey));
+  const cached = no_cache ? null : await Promise.resolve(cache.get(cacheKey));
   if (cached) return cached;
 
   const auth = getAuthClient();
@@ -719,7 +721,7 @@ export async function checkAvailability(params) {
     },
   };
 
-  await Promise.resolve(cache.set(cacheKey, result, CACHE_TTL_SECONDS));
+  if (!no_cache) await Promise.resolve(cache.set(cacheKey, result, CACHE_TTL_SECONDS));
   logWithDuration(log, 'calendar.check → completado', { slots: result.slots.length }, startLog);
   return result;
 }
@@ -878,7 +880,23 @@ async function commitIntent(params) {
   } catch (error) {
     if (error?.code === 'SLOT_OCCUPIED') {
       await updateIntent(id, { status: 'failed', last_error: 'SLOT_OCCUPIED' });
-      return { state: 'slot_occupied', intent_id: id, kind: intent.kind };
+      let alternatives = [];
+      if (intent.kind === 'create') {
+        try {
+          const availability = await checkAvailability({
+            date: intent.payload.date,
+            barber: intent.payload.barber,
+            duration: intent.payload.duration,
+            no_cache: true,
+          });
+          alternatives = (availability.slots || [])
+            .filter((slot) => !String(slot.start || '').includes(`T${intent.payload.time}:`))
+            .slice(0, 2);
+        } catch (availabilityError) {
+          logger.warn?.('SLOT_ALTERNATIVES_ERROR', { message: availabilityError.message });
+        }
+      }
+      return { state: 'slot_occupied', intent_id: id, kind: intent.kind, alternatives };
     }
     if (error?.code === 'EVENT_NOT_FOUND') {
       await updateIntent(id, { status: 'failed', last_error: 'EVENT_NOT_FOUND' });
