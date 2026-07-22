@@ -173,7 +173,7 @@ mcpRouter.post('/', async (req, res) => {
       err.code === 'EVENT_NOT_FOUND' || err.code === 'BARBER_NOT_FOUND' || err.code === 'CATALOG_NOT_FOUND' ? 404 :
       err.code === 'SLOT_OCCUPIED' ? 409 :
       err.code === 'INVALID_RANGE' || err.code === 'IN_PAST' || err.code === 'INVALID_WHEN' || err.code === 'MISSING_CALENDAR' ||
-        err.code === 'PROCEDIMIENTO_REQUIRED' || err.code === 'CATALOG_ID_REQUIRED' ? 400 :
+        err.code === 'PROCEDIMIENTO_REQUIRED' || err.code === 'CATALOG_ID_REQUIRED' || err.code === 'INVALID_INTENT' ? 400 :
       500;
 
     logger.error({ requestId, tool, action, err }, 'mcp.error');

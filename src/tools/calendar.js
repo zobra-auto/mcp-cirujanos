@@ -2,8 +2,11 @@ import { google } from 'googleapis';
 import { DateTime } from 'luxon';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'node:crypto';
 
 import cache from '../utils/cache.js';
+import { pool } from '../db.js';
+import { config } from '../config.js';
 // Logger PRO
 import { logger, createRequestLogger, timeAsync, logWithDuration } from '../utils/logger.js';
 
@@ -428,7 +431,7 @@ async function withIdempotency(key, fn) {
 }
 
 // -------------------- CORE OPS --------------------
-async function createEvent(params) {
+export async function createEvent(params) {
   const log = createRequestLogger({
     tool: 'calendar',
     action: 'create',
@@ -559,7 +562,7 @@ async function createEvent(params) {
 }
 
 
-async function cancelEvent(params) {
+export async function cancelEvent(params) {
   const log = createRequestLogger({
     tool: 'calendar',
     action: 'cancel',
@@ -610,7 +613,7 @@ async function cancelEvent(params) {
 
 // --- REEMPLAZA TU FUNCIÓN checkAvailability ACTUAL POR ESTA ---
 
-async function checkAvailability(params) {
+export async function checkAvailability(params) {
   const log = createRequestLogger({
     tool: 'calendar',
     action: 'check',
@@ -721,11 +724,184 @@ async function checkAvailability(params) {
   return result;
 }
 
+// -------------------- GUARDED ACTION INTENTS --------------------
+// Las acciones externas se preparan en un turno y solo quedan listas cuando
+// llega OTRO mensaje del paciente con confirmación explícita. El commit lo
+// ejecuta n8n después de que el panel humano aprueba la acción.
+function normalizedText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function isExplicitConfirmation(value) {
+  const text = normalizedText(value);
+  if (!text || /\b(no|cambia|cambiar|otro|otra|mejor|espera|despues|cancelar esa)\b/.test(text)) return false;
+  return /\b(si|confirmo|confirmado|de acuerdo|correcto|dale|listo|agendala|agenda|cancela|cancelala)\b/.test(text);
+}
+
+function canonicalPayload(kind, params) {
+  if (kind === 'create') {
+    const required = ['date', 'time', 'who', 'phone', 'barber'];
+    for (const key of required) if (!params?.[key]) throw Object.assign(new Error(`Missing param: ${key}`), { code: 'INVALID_INTENT' });
+    return {
+      date: String(params.date), time: String(params.time), who: String(params.who),
+      phone: String(params.phone), barber: String(params.barber),
+      duration: Number(params.duration || 45),
+    };
+  }
+  if (!params?.eventId || !params?.barber) throw Object.assign(new Error('Missing eventId/barber'), { code: 'INVALID_INTENT' });
+  return { eventId: String(params.eventId), barber: String(params.barber), phone: String(params.phone || '') };
+}
+
+function samePayload(a, b) {
+  const stable = (value) => {
+    if (Array.isArray(value)) return value.map(stable);
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stable(value[key])]));
+    }
+    return value;
+  };
+  return JSON.stringify(stable(a)) === JSON.stringify(stable(b));
+}
+
+async function prepareIntent(params) {
+  const kind = params?.kind;
+  if (!['create', 'cancel'].includes(kind)) throw Object.assign(new Error('kind must be create or cancel'), { code: 'INVALID_INTENT' });
+  const conversationId = String(params.conversation_id || '');
+  const sourceMessageId = String(params.source_message_id || '');
+  if (!conversationId || !sourceMessageId) throw Object.assign(new Error('conversation_id and source_message_id are required'), { code: 'INVALID_INTENT' });
+  const payload = canonicalPayload(kind, params);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `UPDATE booking_action_intents SET status='expired', updated_at=now()
+       WHERE conversation_id=$1 AND kind=$2 AND status IN ('awaiting_patient','ready_for_review') AND expires_at <= now()`,
+      [conversationId, kind],
+    );
+    const currentResult = await client.query(
+      `SELECT * FROM booking_action_intents
+       WHERE conversation_id=$1 AND kind=$2 AND status IN ('awaiting_patient','ready_for_review','committing')
+       ORDER BY created_at DESC LIMIT 1 FOR UPDATE`,
+      [conversationId, kind],
+    );
+    const current = currentResult.rows[0];
+    if (current && current.status === 'committing') {
+      await client.query('COMMIT');
+      return { state: 'committing', intent_id: current.id, kind, summary: current.payload };
+    }
+    if (current && samePayload(current.payload, payload)
+        && current.source_message_id !== sourceMessageId
+        && isExplicitConfirmation(params.user_text)) {
+      const ready = await client.query(
+        `UPDATE booking_action_intents
+         SET status='ready_for_review', confirmed_message_id=$2, updated_at=now()
+         WHERE id=$1 RETURNING *`,
+        [current.id, sourceMessageId],
+      );
+      await client.query('COMMIT');
+      return { state: 'ready_for_review', intent_id: ready.rows[0].id, kind, summary: ready.rows[0].payload };
+    }
+    if (current) {
+      await client.query(
+        `UPDATE booking_action_intents SET status='cancelled', updated_at=now()
+         WHERE id=$1`,
+        [current.id],
+      );
+    }
+    const id = crypto.randomUUID();
+    const inserted = await client.query(
+      `INSERT INTO booking_action_intents
+       (id,conversation_id,kind,payload,source_message_id,status,expires_at)
+       VALUES ($1,$2,$3,$4,$5,'awaiting_patient',now()+($6||' hours')::interval)
+       RETURNING *`,
+      [id, conversationId, kind, payload, sourceMessageId, String(config.actionIntentTtlHours)],
+    );
+    await client.query('COMMIT');
+    return { state: 'confirmation_required', intent_id: id, kind, summary: inserted.rows[0].payload };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function updateIntent(id, fields) {
+  const keys = Object.keys(fields);
+  const values = keys.map((key) => fields[key]);
+  const set = keys.map((key, index) => `${key}=$${index + 2}`).join(', ');
+  await pool.query(`UPDATE booking_action_intents SET ${set}, updated_at=now() WHERE id=$1`, [id, ...values]);
+}
+
+async function commitIntent(params) {
+  const id = String(params?.intent_id || '');
+  if (!id || !params?.review_id || !params?.reviewer) throw Object.assign(new Error('intent_id, review_id and reviewer are required'), { code: 'INVALID_INTENT' });
+  const client = await pool.connect();
+  let intent;
+  try {
+    await client.query('BEGIN');
+    const result = await client.query('SELECT * FROM booking_action_intents WHERE id=$1 FOR UPDATE', [id]);
+    intent = result.rows[0];
+    if (!intent) { await client.query('ROLLBACK'); return { state: 'intent_not_found', intent_id: id }; }
+    if (intent.status === 'completed') { await client.query('COMMIT'); return { state: 'already_completed', intent_id: id, event_id: intent.event_id }; }
+    if (intent.expires_at <= new Date()) {
+      await client.query("UPDATE booking_action_intents SET status='expired',updated_at=now() WHERE id=$1", [id]);
+      await client.query('COMMIT');
+      return { state: 'intent_expired', intent_id: id };
+    }
+    if (intent.status !== 'ready_for_review') { await client.query('COMMIT'); return { state: intent.status, intent_id: id }; }
+    await client.query(
+      `UPDATE booking_action_intents SET status='committing',review_id=$2,reviewer=$3,updated_at=now() WHERE id=$1`,
+      [id, String(params.review_id), String(params.reviewer)],
+    );
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  try {
+    const result = intent.kind === 'create'
+      ? await createEvent({ ...intent.payload, client_request_id: id })
+      : await cancelEvent(intent.payload);
+    const eventId = result?.id || intent.payload.eventId || null;
+    await updateIntent(id, { status: 'completed', event_id: eventId, last_error: null });
+    return { state: 'completed', intent_id: id, kind: intent.kind, event_id: eventId, data: result };
+  } catch (error) {
+    if (error?.code === 'SLOT_OCCUPIED') {
+      await updateIntent(id, { status: 'failed', last_error: 'SLOT_OCCUPIED' });
+      return { state: 'slot_occupied', intent_id: id, kind: intent.kind };
+    }
+    if (error?.code === 'EVENT_NOT_FOUND') {
+      await updateIntent(id, { status: 'failed', last_error: 'EVENT_NOT_FOUND' });
+      return { state: 'event_not_found', intent_id: id, kind: intent.kind };
+    }
+    await updateIntent(id, { status: 'failed', last_error: String(error?.code || error?.message || 'ERROR') });
+    throw error;
+  }
+}
+
 
 
 // -------------------- DISPATCHER --------------------
 export const name = 'calendar';
 export const actions = {
+  async prepare({ params }) {
+    const data = await prepareIntent(params);
+    return { ok: true, data };
+  },
+  async commit({ params }) {
+    const data = await commitIntent(params);
+    return { ok: true, data };
+  },
   async create({ params }) {
     const data = await createEvent(params);
     return { ok: true, data };
@@ -739,4 +915,3 @@ export const actions = {
     return { ok: true, data };
   },
 };
-

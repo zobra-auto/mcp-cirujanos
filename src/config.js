@@ -23,6 +23,14 @@ export const config = {
   casosPath: process.env.CASOS_JSON || './data/casos.json',
   defaultSlotMin: Number(process.env.DEFAULT_SLOT_MINUTES || 45),
   defaultBufferMin: Number(process.env.DEFAULT_BUFFER_MINUTES || 0),
+  actionIntentTtlHours: Number(process.env.ACTION_INTENT_TTL_HOURS || 24),
+  pg: {
+    host: process.env.PGHOST || 'localhost',
+    port: Number(process.env.PGPORT || 5434),
+    user: process.env.PGUSER || 'cirujanos_app',
+    password: process.env.PGPASSWORD || '',
+    database: process.env.PGDATABASE || 'cirujanos_mvp',
+  },
   // si usas SA inline
   saJson: process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON || null,
 };
